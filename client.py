@@ -114,10 +114,8 @@ def encrypt_message(command, path="", file=""):
     path = path.encode('utf-8')
     length_path = len(path).to_bytes(length=2, byteorder='big')
 
-    enc_file, length_enc_file = b"", 0
-    if file != "":
-        enc_file = encrypt_file(file)
-        length_enc_file = len(enc_file).to_bytes(length=2, byteorder='big')
+    enc_file = b"" if file == "" else encrypt_file(file)
+    length_enc_file = len(enc_file).to_bytes(length=2, byteorder='big')
 
     command = command.encode('utf-8')
 

@@ -114,7 +114,7 @@ def decrypt_message(msg):
     elif command == 'RML':
         pass
     elif command=='EXT':
-        pass
+        print("User Log Out!")
     else:
         print('Invalid command')
 
@@ -151,8 +151,8 @@ while True:
         print("Session Key authenticated. Decrypting the message...")
         msg = msg[len(netif.enc_session_key):]
         command, response = decrypt_message(msg)
-        print("Message is decrypted. Sending response to client")
         if command == 'EXT':
             break
+        print("Message is decrypted. Sending response to client")
         netif.send_msg(encrypt_message(response), username.decode('utf-8'))
         print("Response is sent to client")
