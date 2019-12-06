@@ -2,13 +2,12 @@
 # netinterface.py
 
 import os, time
-from Crypto.Cipher import PKCS1_OAEP
-from Crypto.PublicKey import RSA
 
 
 class network_interface:
     timeout = 0.800  # 800 millisec
     addr_space = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    server_name = 'SERVER'
     own_addr = ''
     net_path = ''
     addr_dir = ''
@@ -30,16 +29,6 @@ class network_interface:
         msgs = sorted(os.listdir(in_dir))
         self.last_read = len(msgs) - 1
 
-    def ebtablish_session_key(self, session_key, username, password):
-        print("Ebtablishing session key")
-        f = open(self.net_path+"/public.pem", "r")
-        public_key = RSA.import_key(f.read())
-        # Encrypt the session key with the public RSA key
-        cipher_rsa = PKCS1_OAEP.new(public_key)
-        self.enc_session_key = cipher_rsa.encrypt(session_key)
-        print("Session key is ebtablished!")
-
-        # Encrypt the data with the AES session key
 
     def send_msg(self, msg, destination):
         out_dir = self.net_path + self.own_addr + '/OUT'
@@ -53,9 +42,7 @@ class network_interface:
 
         next_msg += '--' + destination
 
-        (nonce, tag, ciphertext) = msg
-        with open(out_dir + '/' + next_msg, 'wb') as f:
-            [f.write(x) for x in (self.enc_session_key, nonce, tag, ciphertext)]
+        with open(out_dir + '/' + next_msg, 'wb') as f: f.write(msg)
 
         return True
 

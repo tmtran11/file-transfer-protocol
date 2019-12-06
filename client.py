@@ -6,6 +6,8 @@ from netinterface import network_interface
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Random import get_random_bytes
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
 
 NET_PATH = './'
 OWN_ADDR = 'A'
@@ -41,6 +43,23 @@ if len(OWN_ADDR) > 1: OWN_ADDR = OWN_ADDR[0]
 if OWN_ADDR not in network_interface.addr_space:
     print('Error: Invalid address ' + OWN_ADDR)
     sys.exit(1)
+
+
+def ebtablish_session_key(session_key, username, password):
+    globals()
+    client_private_key = RSA.import_key(open(netif.addr_dir + '/private.pem').read())
+    server_public_key = RSA.import_key(open(netif.net_path + "%s_public.pem" % netif.server_name, "r").read())
+    cipher_rsa = PKCS1_OAEP.new(server_public_key)
+    print("Encrypt username, password and session key using server public key...")
+    username, password = username.encode('utf-8'), password.encode('utf-8')
+    length_username, length_password = len(username).to_bytes(length=2, byteorder='big'), len(password).to_bytes(length=2, byteorder='big')
+    enc_session_key = cipher_rsa.encrypt(b''.join([length_username, username, length_password, password, session_key]))
+    timestamp = int(time.time()).to_bytes(length=8, byteorder='big')
+    h = SHA256.new(b''.join([netif.server_name.encode('utf-8'), timestamp, enc_session_key]))
+    print("Creating key signature using client's private key...")
+    signature = pkcs1_15.new(client_private_key).sign(h)
+    message = b''.join([timestamp, enc_session_key, signature])
+    return message
 
 
 def check_client_credential(client_credential, user_input, type):
@@ -82,7 +101,6 @@ def encrypt_file(file):
     print("File encrypted.")
     print("Encrypting file key...")
     enc_file_key = cipher_rsa.encrypt(file_key)
-    print(len(enc_file_key))
     print("Key encrypted")
     enc_file = b''.join([enc_file_key,
                         cipher_aes.nonce,
@@ -129,7 +147,7 @@ def encrypt_message(command, path="", file=""):
 
     cipher_aes = AES.new(session_key, AES.MODE_GCM)
     ciphertext, tag = cipher_aes.encrypt_and_digest(msg)
-    return cipher_aes.nonce, tag, ciphertext
+    return b''.join([cipher_aes.nonce, tag, ciphertext])
 
 
 def decrypt_server_message(msg):
@@ -162,22 +180,13 @@ cipher_rsa = PKCS1_OAEP.new(client_key)
 print('Successfully get client\'s key!')
 print("Logged in")
 
-
 print("Generating session key...")
 session_key = get_random_bytes(16)
-netif.ebtablish_session_key(session_key, OWN_ADDR, password)
+print("Generate session key message...")
+ebtablish_session_key_message = ebtablish_session_key(session_key, OWN_ADDR, password)
 
-print("Encrypting session key...")
-cipher_aes = AES.new(session_key, AES.MODE_GCM)
-data = b''.join([len(OWN_ADDR.encode('utf-8')).to_bytes(2, byteorder='big'),
-                 OWN_ADDR.encode('utf-8'),
-                 len(password.encode('utf-8')).to_bytes(2, byteorder='big'),
-                 password.encode('utf-8')])
-ciphertext, tag = cipher_aes.encrypt_and_digest(data)
-session_key_msg = (cipher_aes.nonce, tag, ciphertext)
-
-print("Sending encrypted session key to server...")
-netif.send_msg(session_key_msg, SERVER_NAME)
+print("Sending encrypted session key message to server...")
+netif.send_msg(ebtablish_session_key_message, SERVER_NAME)
 
 while True:
     # Client send message
@@ -190,13 +199,7 @@ while True:
 
     # Client receive message
     status, server_msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
-    print("Received response from server. Checking session key")
-    enc_session_key_from_server_msg = server_msg[:len(netif.enc_session_key)]
-    if enc_session_key_from_server_msg != netif.enc_session_key:
-        print('Wrong Session Key')
-        break
-    print("Session Key authenticated. Decrypting the server response...")
-    server_msg = server_msg[len(netif.enc_session_key):]
+    print("Received response from server. Decrypting response...")
     response = decrypt_server_message(server_msg)
     if input('Continue? (y/n): ') == 'n':
         netif.send_msg(encrypt_message('EXT'), SERVER_NAME)

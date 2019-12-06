@@ -6,6 +6,8 @@ from netinterface import network_interface
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Protocol.KDF import scrypt
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
 
 NET_PATH = './'
 OWN_ADDR = 'SERVER'
@@ -37,17 +39,31 @@ if not os.access(NET_PATH, os.F_OK):
 netif = network_interface(NET_PATH, OWN_ADDR)
 
 print("Getting private key and salt")
-private_key = RSA.import_key(open("./SERVER/private.pem").read())
+private_key = RSA.import_key(open("./%s/private.pem" % netif.server_name).read())
 cipher_rsa = PKCS1_OAEP.new(private_key)
-salt = open(NET_PATH + 'SERVER/salt.txt', 'rb').read()
+salt = open(NET_PATH + '%s/salt.txt' % netif.server_name, 'rb').read()
 
 
-def process_session_key_msg(msg):
-    enc_session_key = msg[:private_key.size_in_bytes()]
-    nonce = msg[len(enc_session_key):len(enc_session_key) + 16]
-    tag = msg[len(enc_session_key) + len(nonce):len(enc_session_key) + len(nonce) + 16]
-    ciphertext = msg[len(enc_session_key) + len(nonce) + len(tag):]
-    return [enc_session_key, nonce, tag, ciphertext]
+def ebstablish_session_key(msg):
+    globals()
+    timestamp, enc_session_key, signature = msg[:8], msg[8:264], msg[-256:]
+    print("Decrypting Session key using server's private key..")
+    data = cipher_rsa.decrypt(enc_session_key)
+    username, password = process_user_credential(data[:-16])
+    user_authenticated = authenticate_user(username, password)
+    if user_authenticated:
+        client_public_key = RSA.import_key(open(netif.net_path + "/%s_public.pem" % username.decode('utf-8'), "r").read())
+        h = SHA256.new(b''.join([netif.server_name.encode('utf-8'), timestamp, enc_session_key]))
+        print("Verifying signature using %s\'s public key" % username.decode('utf-8'))
+        try:
+            pkcs1_15.new(client_public_key).verify(h, signature)
+            print("Signature verified")
+            session_key = data[-16:]
+            return session_key, username
+        except (ValueError, TypeError):
+            print("Signature is invalid")
+            return None, None
+    else: return None, None
 
 
 def process_user_credential(msg):
@@ -55,7 +71,7 @@ def process_user_credential(msg):
     username = msg[2:2+length_username]
     length_password = int.from_bytes(msg[2+length_username:4+length_username], byteorder='big')
     password = msg[-length_password:]
-    return [username, password]
+    return username, password
 
 
 def process_client_msg(msg):
@@ -71,10 +87,9 @@ def process_client_msg(msg):
 
 def authenticate_user(username, password):
     globals()
-    with open(NET_PATH + 'SERVER/hash_passwords.pck', 'rb') as f:
+    with open(NET_PATH + '%s/hash_passwords.pck' % netif.server_name, 'rb') as f:
         hash_passwords = pickle.load(f)
         if scrypt(password, salt, 16, N=2 ** 14, r=8, p=1) == hash_passwords[username]:
-            netif.enc_session_key = enc_session_key
             print("User authentication success. Session key is ebstablished")
             return True
         else:
@@ -86,8 +101,8 @@ def encrypt_message(msg):
     # TODO: Define responses format
     cipher_aes = AES.new(session_key, AES.MODE_GCM)
     ciphertext, tag = cipher_aes.encrypt_and_digest(msg)
-    return cipher_aes.nonce, tag, ciphertext
-
+    msg = b''.join([cipher_aes.nonce, tag, ciphertext])
+    return msg
 
 def decrypt_message(msg):
     nonce, tag, ciphertext = msg[:16], msg[16:32], msg[32:]
@@ -113,7 +128,7 @@ def decrypt_message(msg):
         pass
     elif command == 'RML':
         pass
-    elif command=='EXT':
+    elif command == 'EXT':
         print("User Log Out!")
     else:
         print('Invalid command')
@@ -124,32 +139,14 @@ def decrypt_message(msg):
 print('Main loop started...')
 while True:
     # Ebtablish session key
-    status, session_key_msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
-    [enc_session_key, nonce, tag, ciphertext] = process_session_key_msg(session_key_msg)
-    print("Server receive encrypted session key")
-
-    # Decrypt the session key with the private RSA key
-    session_key = cipher_rsa.decrypt(enc_session_key)
-    print("Server obtain session key")
-
-    # Decrypt username and password with session key
-    cipher_aes_gcm = AES.new(session_key, AES.MODE_GCM, nonce)
-    enc_user_credential = cipher_aes_gcm.decrypt_and_verify(ciphertext, tag)
-    print("Server decrypt username and password")
-
-    [username, password] = process_user_credential(enc_user_credential)
-    if not authenticate_user(username, password):
-        continue
+    status, session_key_msg = netif.receive_msg(blocking=True) # when returns, status is True and msg contains a message
+    session_key, username = ebstablish_session_key(session_key_msg)
+    if session_key is None: break
+    print("Session key with client %s ebstablished!" % username.decode('utf-8'))
 
     while True:
         status, msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
-        print("Received message from client. Checking session key")
-        enc_session_key_msg = msg[:len(netif.enc_session_key)]
-        if cipher_rsa.decrypt(enc_session_key_msg) != session_key:
-            print('Wrong Session Key')
-            break
-        print("Session Key authenticated. Decrypting the message...")
-        msg = msg[len(netif.enc_session_key):]
+        print("Received message from client. Decrypting client message...")
         command, response = decrypt_message(msg)
         if command == 'EXT':
             break

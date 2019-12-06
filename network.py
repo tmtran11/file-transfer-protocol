@@ -106,25 +106,6 @@ if not os.path.exists(server_dir):
     os.mkdir(server_dir + '/CLIENT_FILES')
     print('Done.')
 
-    # Generate server's public key and private key
-    print('Generating server credential... ')
-    key = RSA.generate(2048)
-
-    # private key save in server
-    print('Saving private key...')
-    private_key = key.export_key()
-    private_file_out = open(server_dir + "/private.pem", "wb")
-    private_file_out.write(private_key)
-
-    # public key save in server
-    print('Saving public key...')
-    public_key = key.publickey().export_key()
-    print(public_key)
-    public_file_out = open("./public.pem", "wb")
-    public_file_out.write(public_key)
-
-    print('Done')
-
 # create folders for addresses if needed
 for addr in ADDR_SPACE:
     addr_dir = NET_PATH + addr
@@ -135,9 +116,33 @@ for addr in ADDR_SPACE:
         os.mkdir(addr_dir + '/OUT')
         print('Done.')
 
+
+for addr in ['SERVER']+list(ADDR_SPACE):
+    # Generate server's public key and private key
+    addr_dir = NET_PATH + addr
+    print('Generating %s\'s key pairs... ' % addr)
+    key = RSA.generate(2048)
+
+    # private key save in server
+    print('Saving %s\'s private key...' % addr)
+    private_key = key.export_key()
+    private_file_out = open(addr_dir + "/private.pem", "wb")
+    private_file_out.write(private_key)
+    private_file_out.close()
+
+    # public key save in server
+    print('Saving %s\'s public key...')
+    public_key = key.publickey().export_key()
+    public_file_out = open("./%s_public.pem" % addr, "wb")
+    public_file_out.write(public_key)
+    public_file_out.close()
+    print('Done')
+
+print("Generate salt for server...")
 salt = get_random_bytes(16)
-with open(NET_PATH+'/SERVER/salt.txt', 'wb') as f:
-    f.write(salt)
+with open(NET_PATH+'/SERVER/salt.txt', 'wb') as salt_file:
+    salt_file.write(salt)
+    salt_file.close()
 
 credentials = {}
 hash_passwords = {}
@@ -152,16 +157,20 @@ for addr in ADDR_SPACE:
     credentials[username] = {'password': password, 'passphrase': passphrase}
     hash_passwords[bytes(username, 'utf-8')] = scrypt(password, salt, 16, N=2**14, r=8, p=1)
     key = RSA.generate(CLIENT_KEY_SIZE)
-    f = open(addr_dir + '/client_key.pem', 'wb')
-    f.write(key.export_key('PEM', passphrase=passphrase))
+    client_key_file = open(addr_dir + '/client_key.pem', 'wb')
+    print("Saving key to %s" % addr_dir + '/client_key.pem')
+    client_key_file.write(key.export_key('PEM', passphrase=passphrase))
     print('Key saved for %s' % username)
+    client_key_file.close()
 
 with open('credentials.json', 'w') as credentials_file:
     json.dump(credentials, credentials_file)
     print('Credential saved')
+    credentials_file.close()
 with open(NET_PATH + '/SERVER/hash_passwords.pck', 'wb') as hash_passwords_file:
     pickle.dump(hash_passwords, hash_passwords_file, protocol=pickle.HIGHEST_PROTOCOL)
     print('Saved Hash passwords on server')
+    hash_passwords_file.close()
 
 # if program was called with --clean, perform clean-up here
 # go through the addr folders and delete messages
