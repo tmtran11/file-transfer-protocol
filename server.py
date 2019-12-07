@@ -11,6 +11,9 @@ from Crypto.Hash import SHA256
 
 NET_PATH = './'
 OWN_ADDR = 'SERVER'
+CLIENT_DIR = 'CLIENT_FILES'
+USR_DIR = ''#A
+CUR_PATH = ''#result of os.path.normpath
 
 # ------------       
 # main program
@@ -44,7 +47,7 @@ cipher_rsa = PKCS1_OAEP.new(private_key)
 salt = open(NET_PATH + '%s/salt.txt' % netif.server_name, 'rb').read()
 
 
-def ebstablish_session_key(msg):
+def establish_session_key(msg):
     globals()
     timestamp, enc_session_key, signature = msg[:8], msg[8:264], msg[-256:]
     print("Decrypting Session key using server's private key..")
@@ -90,7 +93,16 @@ def authenticate_user(username, password):
     with open(NET_PATH + '%s/hash_passwords.pck' % netif.server_name, 'rb') as f:
         hash_passwords = pickle.load(f)
         if scrypt(password, salt, 16, N=2 ** 14, r=8, p=1) == hash_passwords[username]:
-            print("User authentication success. Session key is ebstablished")
+            print("User authentication success. Session key is established")
+            #check if user has a directory in CLIENT_FILES, if not, create
+            global USR_DIR
+            USR_DIR = username.decode("utf-8") 
+            user_dir = NET_PATH + OWN_ADDR + f"/{CLIENT_DIR}" + f"/{USR_DIR}" 
+            
+            if not os.path.exists(user_dir):
+                os.mkdir(user_dir)
+
+
             return True
         else:
             print('User authentication of %s fail' % username)
@@ -105,6 +117,8 @@ def encrypt_message(msg):
     return msg
 
 def decrypt_message(msg):
+    globals()
+    global CUR_PATH
     nonce, tag, ciphertext = msg[:16], msg[16:32], msg[32:]
     cipher_aes = AES.new(session_key, AES.MODE_GCM, nonce)
     data = cipher_aes.decrypt_and_verify(ciphertext, tag)
@@ -117,11 +131,55 @@ def decrypt_message(msg):
     elif command == 'RMD':
         pass
     elif command == 'GWD':
-        pass
+        #asking for the name of the  current folder (working directory) on the server  
+        print(f"Current Directory: {CUR_PATH}")
     elif command == 'CWD':
-        pass
+        #changing the current folder on the server 
+        user_path = OWN_ADDR + f"/{CLIENT_DIR}" + f"/{USR_DIR}"
+        if user_path in path:
+            #user inputs /SERVER/...
+            target = path
+        elif USR_DIR in path:
+            #user inputs /A/..
+            target = OWN_ADDR + f"/{CLIENT_DIR}" + path
+        else:
+            target = f"/{path}"
+
+        full_path = NET_PATH + user_path + target
+        if not os.path.exists(full_path):
+            print(f"1Cannot find path {full_path}")
+        else:
+            working_path = os.path.normpath(full_path).replace(os.sep, '/')
+            print(f"Working path {working_path}")
+            if user_path in working_path:
+                print(f"Found {working_path}")
+                #only return A/...
+                CUR_PATH = working_path.replace("SERVER/CLIENT_FILES/", "")
+                print(f"Cur Dir: {CUR_PATH}")
+            else:
+                print(f"2Cannot find path {working_path}")
+
     elif command == 'LST':
-        pass
+        #listing the content of a folder on the server
+        if (len(CUR_PATH) > 0):
+            path = NET_PATH + OWN_ADDR + f"/{CLIENT_DIR}" + f"/{CUR_PATH}"
+        else:
+            path = NET_PATH + OWN_ADDR + f"/{CLIENT_DIR}" + f"/{USR_DIR}"
+        print(f"path = {path}")
+
+        files = []
+        # r=root, d=directories, f = files
+        for r, d, f in os.walk(path):
+            for folder in d:
+                files.append(f"{folder} <DIR>")
+            for file in f:
+                files.append(file)
+            break #only want one level
+
+        print("=====LST Result=====")
+        for f in files:
+            print(f)
+
     elif command == 'UPL':
         pass
     elif command == 'DNL':
@@ -131,18 +189,18 @@ def decrypt_message(msg):
     elif command == 'EXT':
         print("User Log Out!")
     else:
-        print('Invalid command')
+        print('Invalid command')#add return for invalid response
 
     return command, enc_file
 
 
-print('Main loop started...')
+print('Main loop started...') 
 while True:
     # Ebtablish session key
     status, session_key_msg = netif.receive_msg(blocking=True) # when returns, status is True and msg contains a message
-    session_key, username = ebstablish_session_key(session_key_msg)
+    session_key, username = establish_session_key(session_key_msg)
     if session_key is None: break
-    print("Session key with client %s ebstablished!" % username.decode('utf-8'))
+    print("Session key with client %s established!" % username.decode('utf-8'))
 
     while True:
         status, msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
