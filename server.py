@@ -8,6 +8,8 @@ from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Signature import pkcs1_15
 from Crypto.Hash import SHA256
+import shutil
+
 
 NET_PATH = './'
 OWN_ADDR = 'SERVER'
@@ -182,9 +184,14 @@ def decrypt_message(msg):
     global CUR_PATH
     print("Command is %s" % command)
     if command == 'MKD':
-        pass
+        user_path = OWN_ADDR + f"/{CLIENT_DIR}" + f"/{USR_DIR}"
+        target = f"/{path}"
+        full_path = NET_PATH + user_path + target
+        
+        if not os.path.exists(full_path):
+            os.makedirs(f"SERVER/CLIENT_FILES/{USR_DIR}/{path}")
     elif command == 'RMD':
-        pass
+        shutil.rmtree(f"SERVER/CLIENT_FILES/{USR_DIR}/{path}")
     elif command == 'GWD':
         # asking for the name of the  current folder (working directory) on the server
         print(f"Current Directory: {CUR_PATH}")
@@ -231,8 +238,8 @@ def decrypt_message(msg):
         upload_message(enc_file, path)
     elif command == 'DNL':
         enc_file = download_message(path)
-    elif command == 'RML':
-        pass
+    elif command == 'RMF':
+        os.remove(f"SERVER/CLIENT_FILES/{USR_DIR}/{path}")
     elif command == 'EXT':
         print("User Log Out!")
     else:

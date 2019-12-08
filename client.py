@@ -178,7 +178,7 @@ def decrypt_server_message(msg):
         if length_path == 0:
             print("Invalid Path!")
         else:
-            print(f"Directory made in path: %s") % path
+            print(f"Directory made in path: %s" % path)
     elif command == 'RMD':
         if length_path == 0:
             print("Invalid Path!")
