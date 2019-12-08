@@ -140,12 +140,12 @@ def encrypt_message(command, path=None, file=None):
     timestamp = str(time.time()).encode('utf-8')
     length_timestamp = len(timestamp).to_bytes(length=2, byteorder='big')
 
-    path = b"" if path is None else path.encode('utf-8')
     length_path = 0 if path is None else len(path)
     length_path = length_path.to_bytes(length=2, byteorder='big')
+    path = b"" if path is None else path.encode('utf-8')
 
     enc_file = b"" if file is None else encrypt_file(file)
-    length_enc_file = 0 if enc_file is None else len(enc_file)
+    length_enc_file = 0 if file is None else len(enc_file)
     length_enc_file = length_enc_file.to_bytes(length=2, byteorder='big')
 
     command = command.encode('utf-8')
@@ -172,41 +172,48 @@ def decrypt_server_message(msg):
     global current_timestamp
     if timestamp < current_timestamp:
         print("Timestamp is invalid")
-        return FloatingPointError
     current_timestamp = timestamp
     if command == 'MKD':
         if length_path == 0:
             print("Invalid Path!")
         else:
-            print(f"Directory made in path: %s") % path
+            print("Directory made in path: %s" % path)
     elif command == 'RMD':
         if length_path == 0:
             print("Invalid Path!")
         else:
-            print(f"Directory is removed in path: %s" %path)
+            print("Directory is removed in path: %s" %path)
     elif command == 'GWD':
         # asking for the name of the  current folder (working directory) on the server
         if length_path == 0:
             print("Invalid Path!")
         else:
-            print(f"Current Directory: %s") % path
+            print("Current Directory: %s" % path)
     elif command == 'CWD':
         if length_path == 0:
             print("Invalid Path!")
         else:
-            print(f"Change Directory to: %s") % path
+            print("Change Directory to: %s" % path)
+    elif command=='LST':
+        if length_path == 0:
+            print("Invalid Path!")
+        else:
+            print("List in Directory to: %s" % path)
     elif command == 'UPL':
         if length_path == 0:
             print("Invalid Path!")
         else:
-            print(f"File uploaded successfully to %s") % path
+            print("File uploaded successfully to %s" % path)
     elif command == 'DNL':
         if length_path == 0:
             print("Invalid Path!")
         else:
-            print(f"File downloaded successfully from %s") % path
-    elif command == 'RML':
-        pass
+            print("File downloaded successfully from %s" % path)
+    elif command == 'RMF':
+        if length_path == 0:
+            print("Invalid Path!")
+        else:
+            print("File %s removed successfully" % path)
     elif command == 'ENT':
         print("Logged in")
         print("Session key established with server!")
