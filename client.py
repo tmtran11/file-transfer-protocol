@@ -12,7 +12,7 @@ from Crypto.Hash import SHA256
 NET_PATH = './'
 OWN_ADDR = 'A'
 SERVER_NAME = 'SERVER'
-
+current_timestamp = time.time()
 # ------------       
 # main program
 # ------------
@@ -134,17 +134,19 @@ def decrypt_file(enc_file):
     return file
 
 
-def encrypt_message(command, path="", file=""):
+def encrypt_message(command, path=None, file=None):
     globals()
 
     timestamp = str(time.time()).encode('utf-8')
     length_timestamp = len(timestamp).to_bytes(length=2, byteorder='big')
 
-    path = path.encode('utf-8')
-    length_path = len(path).to_bytes(length=2, byteorder='big')
+    path = b"" if path is None else path.encode('utf-8')
+    length_path = 0 if path is None else len(path)
+    length_path = length_path.to_bytes(length=2, byteorder='big')
 
-    enc_file = b"" if file == "" else encrypt_file(file)
-    length_enc_file = len(enc_file).to_bytes(length=2, byteorder='big')
+    enc_file = b"" if file is None else encrypt_file(file)
+    length_enc_file = 0 if enc_file is None else len(enc_file)
+    length_enc_file = length_enc_file.to_bytes(length=2, byteorder='big')
 
     command = command.encode('utf-8')
 
@@ -167,12 +169,53 @@ def decrypt_server_message(msg):
     cipher_aes = AES.new(session_key, AES.MODE_GCM, nonce)
     data = cipher_aes.decrypt_and_verify(ciphertext, tag)
     [timestamp, command, length_path, path, length_enc_file, enc_file] = process_server_msg(data)
-    if command == 'ENT':
+    global current_timestamp
+    if timestamp < current_timestamp:
+        print("Timestamp is invalid")
+        return FloatingPointError
+    current_timestamp = timestamp
+    if command == 'MKD':
+        if length_path == 0:
+            print("Invalid Path!")
+        else:
+            print(f"Directory made in path: %s") % path
+    elif command == 'RMD':
+        if length_path == 0:
+            print("Invalid Path!")
+        else:
+            print(f"Directory is removed in path: %s" %path)
+    elif command == 'GWD':
+        # asking for the name of the  current folder (working directory) on the server
+        if length_path == 0:
+            print("Invalid Path!")
+        else:
+            print(f"Current Directory: %s") % path
+    elif command == 'CWD':
+        if length_path == 0:
+            print("Invalid Path!")
+        else:
+            print(f"Change Directory to: %s") % path
+    elif command == 'UPL':
+        if length_path == 0:
+            print("Invalid Path!")
+        else:
+            print(f"File uploaded successfully to %s") % path
+    elif command == 'DNL':
+        if length_path == 0:
+            print("Invalid Path!")
+        else:
+            print(f"File downloaded successfully from %s") % path
+    elif command == 'RML':
+        pass
+    elif command == 'ENT':
+        print("Logged in")
         print("Session key established with server!")
+    elif command == 'EXT':
+        print("User credential invalid. Logging out")
+        sys.exit(1)
     if length_enc_file > 0:
         decrypt_file(enc_file)
-    if length_path > 0:
-        print(path)
+    return True
 
 
 netif = network_interface(NET_PATH, OWN_ADDR)
@@ -180,20 +223,10 @@ netif = network_interface(NET_PATH, OWN_ADDR)
 password = input('Type %s\'s password: ' % OWN_ADDR)
 passphrase = input('Type %s\'s passphrase: ' % OWN_ADDR)
 print("Logging In...")
-with open('credentials.json') as in_file:
-    credentials = json.load(in_file)
-    if credentials[OWN_ADDR]['password'] == password and credentials[OWN_ADDR]['passphrase'] == passphrase:
-        client_key = get_client_key(passphrase)
-    else:
-        if credentials[OWN_ADDR]['password'] != password:
-            password = check_client_credential(credentials[OWN_ADDR]['password'], password, 'password')
-        if credentials[OWN_ADDR]['passphrase'] != passphrase:
-            passphrase = check_client_credential(credentials[OWN_ADDR]['passphrase'], passphrase, 'passphrase')
 
 client_key = get_client_key(passphrase)
 cipher_rsa = PKCS1_OAEP.new(client_key)
 print('Successfully get client\'s key!')
-print("Logged in")
 
 print("Generating session key...")
 session_key = get_random_bytes(16)
@@ -214,10 +247,12 @@ while True:
     netif.send_msg(encrypt_message(command, file_path, file), SERVER_NAME)
     print("Message is encrypted and sent. Waiting for response from server...")
 
-    # Client receive message
-    status, server_msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
-    print("Received response from server. Decrypting response...")
-    decrypt_server_message(server_msg)
+    while True:
+        # Client receive message
+        _, server_msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
+        print("Received response from server. Decrypting response...")
+        status = decrypt_server_message(server_msg)
+        if status: break
     if input('Continue? (y/n): ') == 'n':
         netif.send_msg(encrypt_message('EXT'), SERVER_NAME)
         break
