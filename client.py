@@ -89,6 +89,17 @@ def process_enc_file(enc_file):
     return [enc_file_key, nonce, ciphertext, tag]
 
 
+def process_server_msg(msg):
+    length_timestamp = int.from_bytes(msg[:2], byteorder='big')
+    timestamp = float(msg[2:length_timestamp+2].decode('utf-8'))
+    command = msg[length_timestamp+2:length_timestamp+5].decode('utf-8')
+    length_path = int.from_bytes(msg[length_timestamp+5:length_timestamp+7], byteorder='big')
+    path = msg[length_timestamp+7:length_timestamp+length_path+7].decode('utf-8')
+    length_enc_file = int.from_bytes(msg[length_timestamp+length_path+7:length_timestamp+length_path+9], byteorder='big')
+    enc_file = msg[-length_enc_file:]
+    return [timestamp, command, length_path, path, length_enc_file, enc_file]
+
+
 def encrypt_file(file):
     globals()
     print("Encrypting file...")
@@ -154,10 +165,14 @@ def decrypt_server_message(msg):
     globals()
     nonce, tag, ciphertext = msg[:16], msg[16:32], msg[32:]
     cipher_aes = AES.new(session_key, AES.MODE_GCM, nonce)
-    enc_file = cipher_aes.decrypt_and_verify(ciphertext, tag)
-    if enc_file != "":
-        file = decrypt_file(enc_file)
-        return file
+    data = cipher_aes.decrypt_and_verify(ciphertext, tag)
+    [timestamp, command, length_path, path, length_enc_file, enc_file] = process_server_msg(data)
+    if command == 'ENT':
+        print("Session key established with server!")
+    if length_enc_file > 0:
+        decrypt_file(enc_file)
+    if length_path > 0:
+        print(path)
 
 
 netif = network_interface(NET_PATH, OWN_ADDR)
@@ -187,6 +202,8 @@ ebtablish_session_key_message = ebtablish_session_key(session_key, OWN_ADDR, pas
 
 print("Sending encrypted session key message to server...")
 netif.send_msg(ebtablish_session_key_message, SERVER_NAME)
+status, server_msg = netif.receive_msg(blocking=True)
+decrypt_server_message(server_msg)
 
 while True:
     # Client send message
@@ -200,7 +217,7 @@ while True:
     # Client receive message
     status, server_msg = netif.receive_msg(blocking=True)  # when returns, status is True and msg contains a message
     print("Received response from server. Decrypting response...")
-    response = decrypt_server_message(server_msg)
+    decrypt_server_message(server_msg)
     if input('Continue? (y/n): ') == 'n':
         netif.send_msg(encrypt_message('EXT'), SERVER_NAME)
         break
