@@ -248,8 +248,8 @@ decrypt_server_message(server_msg)
 while True:
     # Client send message
     command = input('Type a command: ').upper()
-    file_path = input('Type a file path (leave Blank if not needed): ')
-    file = input('Type a text message (leave Blank if not needed): ')
+    file_path = input('Type a file path (optional): ')
+    file = input('Type a text message (optional): ')
     print("Encrypting message...")
     netif.send_msg(encrypt_message(command, file_path, file), SERVER_NAME)
     print("Message is encrypted and sent. Waiting for response from server...")
