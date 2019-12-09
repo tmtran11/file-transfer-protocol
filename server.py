@@ -232,7 +232,8 @@ def decrypt_message(msg):
     cipher_aes = AES.new(session_key, AES.MODE_GCM, nonce)
     data = cipher_aes.decrypt_and_verify(ciphertext, tag)
     [timestamp, command, length_path, path, length_enc_file, enc_file] = process_client_msg(data)
-    if length_enc_file == 0: enc_file = None
+    if length_enc_file == 0:
+        enc_file = None
 
     global current_timestamp
     if timestamp < current_timestamp:
