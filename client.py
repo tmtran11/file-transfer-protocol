@@ -140,12 +140,12 @@ def encrypt_message(command, path=None, file=None):
     timestamp = str(time.time()).encode('utf-8')
     length_timestamp = len(timestamp).to_bytes(length=2, byteorder='big')
 
-    length_path = 0 if path is None else len(path)
+    length_path = 0 if path == "" else len(path)
     length_path = length_path.to_bytes(length=2, byteorder='big')
-    path = b"" if path is None else path.encode('utf-8')
+    path = b"" if path == "" else path.encode('utf-8')
 
-    enc_file = b"" if file is None else encrypt_file(file)
-    length_enc_file = 0 if file is None else len(enc_file)
+    enc_file = b"" if file == "" else encrypt_file(file)
+    length_enc_file = 0 if file == ""  else len(enc_file)
     length_enc_file = length_enc_file.to_bytes(length=2, byteorder='big')
 
     command = command.encode('utf-8')
@@ -194,11 +194,12 @@ def decrypt_server_message(msg):
             print("Invalid Path!")
         else:
             print("Change Directory to: %s" % path)
-    elif command=='LST':
+    elif command == 'LST':
         if length_path == 0:
             print("Invalid Path!")
         else:
-            print("List in Directory to: %s" % path)
+            print("List in Directory to:")
+            print(path)
     elif command == 'UPL':
         if length_path == 0:
             print("Invalid Path!")
