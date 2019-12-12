@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # network.py
 
-import os, sys, getopt, time, json, pickle
+import os, sys, getopt, time, json, pickle, shutil
 from Crypto.PublicKey import RSA
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
@@ -95,6 +95,13 @@ print('  Address space: ' + ADDR_SPACE)
 print('  Clean-up requested: ', CLEAN)
 print('--------------------------------------------')
 
+# if program was called with --clean, perform clean-up here
+# go through the addr folders and delete messages
+if CLEAN:
+    for addr in list(ADDR_SPACE)+['SERVER']:
+        if os.path.exists(NET_PATH + addr):
+            shutil.rmtree(NET_PATH + addr)
+
 # create server and generate public and private key for server
 server_dir = NET_PATH + 'SERVER'
 if not os.path.exists(server_dir):
@@ -131,7 +138,7 @@ for addr in ['SERVER']+list(ADDR_SPACE):
     private_file_out.close()
 
     # public key save in server
-    print('Saving %s\'s public key...')
+    print('Saving %s\'s public key...' % addr)
     public_key = key.publickey().export_key()
     public_file_out = open("./%s_public.pem" % addr, "wb")
     public_file_out.write(public_key)
@@ -171,15 +178,6 @@ with open(NET_PATH + '/SERVER/hash_passwords.pck', 'wb') as hash_passwords_file:
     pickle.dump(hash_passwords, hash_passwords_file, protocol=pickle.HIGHEST_PROTOCOL)
     print('Saved Hash passwords on server')
     hash_passwords_file.close()
-
-# if program was called with --clean, perform clean-up here
-# go through the addr folders and delete messages
-if CLEAN:
-    for addr in list(ADDR_SPACE)+['SERVER']:
-        in_dir = NET_PATH + addr + '/IN'
-        for f in os.listdir(in_dir): os.remove(in_dir + '/' + f)
-        out_dir = NET_PATH + addr + '/OUT'
-        for f in os.listdir(out_dir): os.remove(out_dir + '/' + f)
 
 # initialize state (needed for tracking last read messages from OUT dirs)
 last_read = {}

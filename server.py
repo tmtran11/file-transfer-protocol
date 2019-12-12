@@ -237,7 +237,6 @@ def decrypt_message(msg):
 
     global current_timestamp
     print("Message timestamp and current timestamp")
-    print(timestamp, current_timestamp)
     if timestamp < current_timestamp:
         print("Timestamp is invalid!")
         return None, None, None
@@ -299,7 +298,7 @@ def decrypt_message(msg):
             for file in f:
                 files.append(file)
             break  # only want one level
-        path = '\n'.join(files)
+        path = '\n'.join(files) if len(files) > 0 else '.'
         print("List in Directory:")
         print(path)
 
@@ -315,6 +314,8 @@ def decrypt_message(msg):
         if path is not None:
             print(f"Download path is: \n{path}")
             enc_file = download_message(path)
+        else:
+            enc_file = None
 
     elif command == 'RMF':
         user_path = OWN_ADDR + f"/{CLIENT_DIR}" + f"/{USR_DIR}"
