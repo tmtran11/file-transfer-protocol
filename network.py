@@ -7,7 +7,7 @@ from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
 
 NET_PATH = './'
-ADDR_SPACE = 'A'
+ADDR_SPACE = 'AB'
 CLEAN = False
 TIMEOUT = 0.500  # 500 millisec
 CLIENT_KEY_SIZE = 2048

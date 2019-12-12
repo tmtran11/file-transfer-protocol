@@ -236,6 +236,8 @@ def decrypt_message(msg):
         enc_file = None
 
     global current_timestamp
+    print("Message timestamp and current timestamp")
+    print(timestamp, current_timestamp)
     if timestamp < current_timestamp:
         print("Timestamp is invalid!")
         return None, None, None
@@ -330,6 +332,7 @@ def decrypt_message(msg):
 
     else:
         print('Invalid command')
+        return command, None, None
 
     return command, path, enc_file
 
@@ -337,7 +340,6 @@ def decrypt_message(msg):
 current_timestamp = -1
 print('Main loop started...')
 while True:
-    # Establish session key
     status, session_key_msg = netif.receive_msg(blocking=True) # when returns, status is True and msg contains a message
     session_key, username = ebstablish_session_key(session_key_msg)
     if session_key is None:
@@ -352,6 +354,7 @@ while True:
         command, path, enc_file = decrypt_message(msg)
         if command == 'EXT':
             break
-        print("Message is decrypted. Sending response to client")
-        netif.send_msg(encrypt_message(command, path, enc_file), username.decode('utf-8'))
-        print("Response is sent to client")
+        if command:
+            print("Message is decrypted. Sending response to client")
+            netif.send_msg(encrypt_message(command, path, enc_file), username.decode('utf-8'))
+            print("Response is sent to client")
