@@ -68,6 +68,8 @@ def ebstablish_session_key(msg):
             pkcs1_15.new(client_public_key).verify(h, signature)
             print("Signature verified!")
             session_key = data[-16:]
+            global USR_DIR
+            USR_DIR = username.decode('utf-8')
             return session_key, username
         except (ValueError, TypeError):
             print("Signature is invalid")
@@ -227,6 +229,9 @@ def encrypt_message(command, path=None, enc_file=None):
 
 def decrypt_message(msg):
     globals()
+    global current_timestamp
+    global CUR_PATH
+    global CUR_DIR
 
     nonce, tag, ciphertext = msg[:16], msg[16:32], msg[32:]
     cipher_aes = AES.new(session_key, AES.MODE_GCM, nonce)
@@ -235,7 +240,6 @@ def decrypt_message(msg):
     if length_enc_file == 0:
         enc_file = None
 
-    global current_timestamp
     print("Message timestamp and current timestamp")
     if timestamp < current_timestamp:
         print("Timestamp is invalid!")
@@ -329,6 +333,8 @@ def decrypt_message(msg):
             path = None
 
     elif command == 'EXT':
+        USR_DIR = '.'
+        CUR_PATH = ''
         print("User Log Out!")
 
     else:
